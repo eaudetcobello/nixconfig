@@ -80,10 +80,14 @@
   services.openssh = {
     enable = true;
     settings = {
-      PasswordAuthentication = true;
-      PermitRootLogin = "yes";
+      PasswordAuthentication = false;
+      PermitRootLogin = "no";
     };
   };
+
+  users.users.user.openssh.authorizedKeys.keys = [
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIpaTU0yr99vU4jyE1CpFTU0dvRIVhOsjY50mWuyh1wP"
+  ];
 
   services.tailscale.enable = true;
   networking.firewall.trustedInterfaces = [ "tailscale0" ];
@@ -104,6 +108,20 @@
       pull.rebase = true;
     };
   };
+
+  system.autoUpgrade = {
+    enable = true;
+    dates = "04:00";
+    allowReboot = true;
+  };
+
+  nix.gc = {
+    automatic = true;
+    dates = "weekly";
+    options = "--delete-older-than 30d";
+  };
+
+  nix.settings.allowed-users = [ "@wheel" ];
 
   # Open ports in the firewall.
   # networking.firewall.allowedTCPPorts = [ ... ];
