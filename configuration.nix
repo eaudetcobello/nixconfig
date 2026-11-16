@@ -123,8 +123,50 @@
 
   nix.settings.allowed-users = [ "@wheel" ];
 
+  # Media folder shared by qBittorrent (writes downloads) and zerofin (serves them, writes .srt files).
+  systemd.tmpfiles.rules = [ "d /srv/media 0775 user users -" ];
+
+  # zerofin streams /srv/media to the TV on port 8080. podman-auto-update pulls new images daily.
+  virtualisation.podman.enable = true;
+  virtualisation.oci-containers.backend = "podman";
+  virtualisation.oci-containers.containers.zerofin = {
+    image = "ghcr.io/eaudetcobello/zerofin:latest";
+    user = "1000:100";
+    environment.HOME = "/tmp";
+    volumes = [ "/srv/media:/media" ];
+    extraOptions = [ "--network=host" ];
+    labels."io.containers.autoupdate" = "registry";
+  };
+  systemd.timers.podman-auto-update.wantedBy = [ "timers.target" ];
+
+  # qBittorrent web UI on port 8081, no login from the LAN or Tailscale.
+  # Finished downloads land in /srv/media; partial ones in /srv/media/.incomplete, which zerofin skips.
+  # serverConfig overwrites qBittorrent.conf on every start, so set persistent options here, not in the web UI.
+  services.qbittorrent = {
+    enable = true;
+    user = "user";
+    group = "users";
+    webuiPort = 8081;
+    torrentingPort = 51413;
+    openFirewall = true;
+    serverConfig = {
+      LegalNotice.Accepted = true;
+      BitTorrent.Session = {
+        DefaultSavePath = "/srv/media";
+        TempPathEnabled = true;
+        TempPath = "/srv/media/.incomplete";
+      };
+      Preferences.WebUI = {
+        LocalHostAuth = false;
+        AuthSubnetWhitelistEnabled = true;
+        AuthSubnetWhitelist = "10.0.0.0/24, 100.64.0.0/10";
+      };
+    };
+  };
+
   # Open ports in the firewall.
-  # networking.firewall.allowedTCPPorts = [ ... ];
+  networking.firewall.allowedTCPPorts = [ 8080 ];
+  networking.firewall.allowedUDPPorts = [ 51413 ];
   # networking.firewall.allowedUDPPorts = [ ... ];
   # Or disable the firewall altogether.
   # networking.firewall.enable = false;
